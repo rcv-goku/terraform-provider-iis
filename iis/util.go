@@ -5,11 +5,56 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"time"
 )
+
+// BuildPatchBody creates a JSON-safe map from a struct, omitting zero/empty values.
+// This prevents the IIS Admin API from returning 500 on zero-value fields.
+// Use this instead of sending raw structs in PATCH requests.
+func BuildPatchBody(v interface{}) map[string]interface{} {
+	data, _ := json.Marshal(v)
+	var raw map[string]interface{}
+	json.Unmarshal(data, &raw)
+	return removeEmpty(raw)
+}
+
+func removeEmpty(m map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range m {
+		switch val := v.(type) {
+		case nil:
+			continue
+		case string:
+			if val == "" {
+				continue
+			}
+		case float64:
+			if val == 0 {
+				continue
+			}
+		case bool:
+			// always include bools — false is a valid value
+			result[k] = val
+			continue
+		case map[string]interface{}:
+			nested := removeEmpty(val)
+			if len(nested) > 0 {
+				result[k] = nested
+			}
+			continue
+		case []interface{}:
+			if len(val) == 0 {
+				continue
+			}
+		}
+		result[k] = v
+	}
+	return result
+}
 
 func getJson(ctx context.Context, client Client, path string, r interface{}) error {
 	data, err := httpGet(ctx, client, path)
@@ -103,9 +148,10 @@ func request(ctx context.Context, client Client, method, path string, body inter
 	
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+			// Exponential backoff with jitter to avoid thundering herd
 			backoff := initialBackoff * time.Duration(1<<uint(attempt-1))
-			time.Sleep(backoff)
+			jitter := time.Duration(rand.Int63n(int64(backoff) / 2))
+			time.Sleep(backoff + jitter)
 		}
 		
 		// Build a fresh request for each attempt (important for NTLM and body reuse)
@@ -171,7 +217,7 @@ func executeRequest(client Client, req *http.Request) (*http.Response, error) {
 }
 
 func fetchBody(res *http.Response) ([]byte, error) {
-	resBody, err := ioutil.ReadAll(res.Body)
+	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -185,9 +231,12 @@ func guardStatusCode(method string, url *url.URL, response *http.Response) error
 	if response.StatusCode < 200 || response.StatusCode >= 400 {
 		var body string
 		if buffer, err := fetchBody(response); err == nil {
-			body = string(buffer[:])
+			body = string(buffer)
 		}
-		return fmt.Errorf("%s %s returned invalid status code: %s\n%s", method, url, response.Status, body)
+		if body != "" {
+			return fmt.Errorf("%s %s returned %s\n%s", method, url.Path, response.Status, body)
+		}
+		return fmt.Errorf("%s %s returned %s", method, url.Path, response.Status)
 	}
 	return nil
 }

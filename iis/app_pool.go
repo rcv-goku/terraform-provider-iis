@@ -28,8 +28,8 @@ type ApplicationPool struct {
 }
 
 type CPU struct {
-	Limit int64 `json:"limit"`
-	//LimitInterval            int64  `json:"limit_interval"`
+	Limit                    int64  `json:"limit"`
+	LimitInterval            int64  `json:"limit_interval"`
 	Action                   string `json:"action"`
 	ProcessorAffinityEnabled bool   `json:"processor_affinity_enabled"`
 	ProcessorAffinityMask32  string `json:"processor_affinity_mask32"`
@@ -43,13 +43,13 @@ type Identity struct {
 }
 
 type ProcessModel struct {
-	//IdleTimeout       int64  `json:"idle_timeout"`
-	MaxProcesses   int64 `json:"max_processes"`
-	PingingEnabled bool  `json:"pinging_enabled"`
-	//PingInterval      int64  `json:"ping_interval"`
-	//PingResponseTime  int64  `json:"ping_response_time"`
-	//ShutdownTimeLimit int64  `json:"shutdown_time_limit"`
-	//StartupTimeLimit  int64  `json:"startup_time_limit"`
+	IdleTimeout       int64  `json:"idle_timeout"`
+	MaxProcesses      int64  `json:"max_processes"`
+	PingingEnabled    bool   `json:"pinging_enabled"`
+	PingInterval      int64  `json:"ping_interval"`
+	PingResponseTime  int64  `json:"ping_response_time"`
+	ShutdownTimeLimit int64  `json:"shutdown_time_limit"`
+	StartupTimeLimit  int64  `json:"startup_time_limit"`
 	IdleTimeoutAction string `json:"idle_timeout_action"`
 }
 
@@ -62,10 +62,10 @@ type ProcessOrphaning struct {
 type RapidFailProtection struct {
 	Enabled                  bool   `json:"enabled"`
 	LoadBalancerCapabilities string `json:"load_balancer_capabilities"`
-	//Interval                 int64  `json:"interval"`
-	MaxCrashes         int64  `json:"max_crashes"`
-	AutoShutdownExe    string `json:"auto_shutdown_exe"`
-	AutoShutdownParams string `json:"auto_shutdown_params"`
+	Interval                 int64  `json:"interval"`
+	MaxCrashes               int64  `json:"max_crashes"`
+	AutoShutdownExe          string `json:"auto_shutdown_exe"`
+	AutoShutdownParams       string `json:"auto_shutdown_params"`
 }
 
 type Recycling struct {
@@ -87,7 +87,7 @@ type LogEvents struct {
 }
 
 type PeriodicRestart struct {
-	//TimeInterval  int64         `json:"time_interval"`
+	TimeInterval  int64         `json:"time_interval"`
 	PrivateMemory int64         `json:"private_memory"`
 	RequestLimit  int64         `json:"request_limit"`
 	VirtualMemory int64         `json:"virtual_memory"`

@@ -3,7 +3,6 @@ package iis
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 )
 
 func (client Client) CreateApplication(ctx context.Context, application CreateApplicationRequest) (*Application, error) {
@@ -16,7 +15,6 @@ func (client Client) CreateApplication(ctx context.Context, application CreateAp
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(app)
 	return &app, nil
 }
 

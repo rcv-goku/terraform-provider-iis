@@ -1,12 +1,15 @@
 package iis
 
 type Website struct {
-	Name            string               `json:"name"`
-	ID              string               `json:"id"`
-	Status          string               `json:"status"`
-	PhysicalPath    string               `json:"physical_path"`
-	Bindings        []WebsiteBinding     `json:"bindings"`
-	ApplicationPool ApplicationReference `json:"application_pool"`
+	Name             string               `json:"name"`
+	ID               string               `json:"id"`
+	Status           string               `json:"status"`
+	PhysicalPath     string               `json:"physical_path"`
+	Bindings         []WebsiteBinding     `json:"bindings"`
+	ApplicationPool  ApplicationReference `json:"application_pool"`
+	EnabledProtocols string               `json:"enabled_protocols"`
+	ServerAutoStart  bool                 `json:"server_auto_start"`
+	Limits           WebsiteLimits        `json:"limits"`
 }
 
 type WebsiteBinding struct {
@@ -19,4 +22,11 @@ type WebsiteBinding struct {
 
 type BindingCertificate struct {
 	ID string `json:"id"`
+}
+
+type WebsiteLimits struct {
+	ConnectionTimeout int64 `json:"connection_timeout"`
+	MaxBandwidth      int64 `json:"max_bandwidth"`
+	MaxConnections    int64 `json:"max_connections"`
+	MaxUrlSegments    int64 `json:"max_url_segments"`
 }

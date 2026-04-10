@@ -13,6 +13,9 @@ const nameKey = "name"
 const physicalPathKey = "physical_path"
 const bindingsKey = "binding"
 const appPoolKey = "application_pool"
+const enabledProtocolsKey = "enabled_protocols"
+const serverAutoStartKey = "server_auto_start"
+const limitsKey = "limits"
 
 const bindingProtocolKey = "protocol"
 const bindingPortKey = "port"
@@ -53,6 +56,52 @@ func resourceWebsite() *schema.Resource {
 				Type:     schema.TypeSet,
 				Required: true,
 				Elem:     bindingSchema,
+			},
+			enabledProtocolsKey: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "Comma-separated list of enabled protocols (e.g. \"http,https\")",
+			},
+			serverAutoStartKey: {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+				Description: "Whether the site starts automatically when IIS starts",
+			},
+			limitsKey: {
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"connection_timeout": {
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Computed:    true,
+							Description: "Connection timeout in seconds",
+						},
+						"max_bandwidth": {
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Computed:    true,
+							Description: "Maximum bandwidth in bytes per second (0 = unlimited)",
+						},
+						"max_connections": {
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Computed:    true,
+							Description: "Maximum number of concurrent connections (0 = unlimited)",
+						},
+						"max_url_segments": {
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Computed:    true,
+							Description: "Maximum number of URL segments",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -127,6 +176,15 @@ func resourceWebsiteRead(ctx context.Context, d *schema.ResourceData, m interfac
 	if err = d.Set(bindingsKey, mapBindingsToSet(site)); err != nil {
 		return diag.FromErr(err)
 	}
+	if err = d.Set(enabledProtocolsKey, site.EnabledProtocols); err != nil {
+		return diag.FromErr(err)
+	}
+	if err = d.Set(serverAutoStartKey, site.ServerAutoStart); err != nil {
+		return diag.FromErr(err)
+	}
+	if err = d.Set(limitsKey, flattenWebsiteLimits(site.Limits)); err != nil {
+		return diag.FromErr(err)
+	}
 	return nil
 }
 
@@ -134,7 +192,7 @@ func resourceWebsiteUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	client := m.(*iis.Client)
 	
 	// Check if anything changed
-	if !d.HasChanges(nameKey, physicalPathKey, appPoolKey, bindingsKey, "status") {
+	if !d.HasChanges(nameKey, physicalPathKey, appPoolKey, bindingsKey, "status", enabledProtocolsKey, serverAutoStartKey, limitsKey) {
 		return nil
 	}
 	
@@ -177,7 +235,19 @@ func resourceWebsiteUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		bindings := d.Get(bindingsKey).(*schema.Set)
 		site.Bindings = getBindings(bindings)
 	}
-	
+
+	if d.HasChange(enabledProtocolsKey) {
+		site.EnabledProtocols = d.Get(enabledProtocolsKey).(string)
+	}
+
+	if d.HasChange(serverAutoStartKey) {
+		site.ServerAutoStart = d.Get(serverAutoStartKey).(bool)
+	}
+
+	if d.HasChange(limitsKey) {
+		site.Limits = expandWebsiteLimits(d)
+	}
+
 	tflog.Debug(ctx, "Updating website: "+toJSON(site))
 	updatedSite, err := client.UpdateWebsite(ctx, *site)
 	if err != nil {
@@ -212,6 +282,17 @@ func createWebsiteRequest(d *schema.ResourceData) iis.CreateWebsiteRequest {
 		request.ApplicationPool = iis.ApplicationReference{
 			ID: appPool.(string),
 		}
+	}
+	if v, ok := d.GetOk(enabledProtocolsKey); ok {
+		request.EnabledProtocols = v.(string)
+	}
+	if v, ok := d.GetOk(serverAutoStartKey); ok {
+		val := v.(bool)
+		request.ServerAutoStart = &val
+	}
+	if _, ok := d.GetOk(limitsKey); ok {
+		limits := expandWebsiteLimits(d)
+		request.Limits = &limits
 	}
 	return request
 }
@@ -264,4 +345,34 @@ func hashBinding(v interface{}) int {
 	certificateId := schema.HashString(bindingMap[bindingCertificateId].(string))
 
 	return address + protocol + port + hostname + certificateId
+}
+
+// expandWebsiteLimits reads the limits block from Terraform state into an iis.WebsiteLimits struct.
+func expandWebsiteLimits(d *schema.ResourceData) iis.WebsiteLimits {
+	v, ok := d.GetOk(limitsKey)
+	if !ok {
+		return iis.WebsiteLimits{}
+	}
+	list := v.([]interface{})
+	if len(list) == 0 {
+		return iis.WebsiteLimits{}
+	}
+	m := list[0].(map[string]interface{})
+	return iis.WebsiteLimits{
+		ConnectionTimeout: int64(m["connection_timeout"].(int)),
+		MaxBandwidth:      int64(m["max_bandwidth"].(int)),
+		MaxConnections:    int64(m["max_connections"].(int)),
+		MaxUrlSegments:    int64(m["max_url_segments"].(int)),
+	}
+}
+
+// flattenWebsiteLimits converts an iis.WebsiteLimits struct into the list-of-maps format
+// expected by the Terraform TypeList schema.
+func flattenWebsiteLimits(limits iis.WebsiteLimits) []map[string]interface{} {
+	return []map[string]interface{}{{
+		"connection_timeout": int(limits.ConnectionTimeout),
+		"max_bandwidth":      int(limits.MaxBandwidth),
+		"max_connections":    int(limits.MaxConnections),
+		"max_url_segments":   int(limits.MaxUrlSegments),
+	}}
 }
