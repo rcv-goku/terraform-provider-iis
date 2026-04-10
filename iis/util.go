@@ -109,28 +109,27 @@ func buildRequest(ctx context.Context, client Client, method, path string, body 
 		return nil, err
 	}
 	
-	// Set authentication and authorization headers
-	// Access token is used for API authorization (if available)
-	if client.AccessKey != "" {
-		req.Header.Set("Access-Token", fmt.Sprintf("Bearer %s", client.AccessKey))
-	}
-	
-	// NTLM authentication: Set basic auth credentials for ntlmssp.Negotiator
-	// The ntlmssp.Negotiator transport expects basic auth to be set on requests
-	// and will automatically convert them to proper NTLM negotiation
-	if client.NTLMUsername != "" && client.NTLMPassword != "" {
-		// Format username with domain if provided (domain\username format)
-		username := client.NTLMUsername
-		if client.NTLMDomain != "" {
-			username = fmt.Sprintf("%s\\%s", client.NTLMDomain, client.NTLMUsername)
+	if client.AgentMode {
+		// iis-agent: standard Authorization header
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.AccessKey))
+	} else {
+		// MS IIS Admin API: Access-Token header + NTLM
+		if client.AccessKey != "" {
+			req.Header.Set("Access-Token", fmt.Sprintf("Bearer %s", client.AccessKey))
 		}
-		req.SetBasicAuth(username, client.NTLMPassword)
+		if client.NTLMUsername != "" && client.NTLMPassword != "" {
+			username := client.NTLMUsername
+			if client.NTLMDomain != "" {
+				username = fmt.Sprintf("%s\\%s", client.NTLMDomain, client.NTLMUsername)
+			}
+			req.SetBasicAuth(username, client.NTLMPassword)
+		}
+		req.Header.Set("Accept", "application/hal+json")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	}
-	
-	// Set required headers for IIS Administration API
-	req.Header.Set("Accept", "application/hal+json")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
+	req.Header.Set("Accept", "application/json")
 	
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

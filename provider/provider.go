@@ -61,6 +61,12 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("IIS_NTLM_DOMAIN", nil),
 				Description: "Domain for NTLM authentication. Can also be sourced from the IIS_NTLM_DOMAIN environment variable. Optional, can be empty for local accounts.",
 			},
+			"agent_mode": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				DefaultFunc: schema.EnvDefaultFunc("IIS_AGENT_MODE", false),
+				Description: "Use iis-agent backend instead of Microsoft IIS Admin API. When true, only host + access_key are needed (no NTLM). Can also be sourced from IIS_AGENT_MODE.",
+			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"iis_application_pool":  resourceApplicationPool(),
@@ -98,21 +104,28 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 	ntlmUsername := d.Get("ntlm_username").(string)
 	ntlmPassword := d.Get("ntlm_password").(string)
 	ntlmDomain := d.Get("ntlm_domain").(string)
+	agentMode := d.Get("agent_mode").(bool)
 
 	// Validate authentication method
 	hasAccessKey := accessKey != ""
 	hasNtlmCreds := ntlmUsername != "" && ntlmPassword != ""
 
-	if !hasAccessKey && !hasNtlmCreds {
+	if agentMode {
+		// Agent mode: only access_key required
+		if !hasAccessKey {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Missing access_key",
+				Detail:   "In agent_mode, access_key (Bearer token) is required.",
+			})
+		}
+	} else if !hasAccessKey && !hasNtlmCreds {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
 			Summary:  "Missing Authentication Credentials",
-			Detail:   "Either access_key OR NTLM credentials (username/password) must be provided. Both can be used together for IIS Administration API. Use IIS_ACCESS_KEY and/or IIS_NTLM_USERNAME/IIS_NTLM_PASSWORD environment variables.",
+			Detail:   "Either access_key OR NTLM credentials (username/password) must be provided.",
 		})
 	}
-
-	// Note: Both access_key and NTLM credentials can be used together
-	// NTLM for authentication, access_key for API authorization
 
 	if diags.HasError() {
 		return nil, diags
@@ -153,10 +166,9 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 		transport.Proxy = http.ProxyURL(parsedProxyURL)
 	}
 
-	// Configure NTLM authentication if credentials are provided
+	// Configure NTLM authentication if credentials are provided (legacy mode only)
 	var finalTransport http.RoundTripper = transport
-	if hasNtlmCreds {
-		// Wrap transport with NTLM authentication
+	if hasNtlmCreds && !agentMode {
 		finalTransport = &ntlmssp.Negotiator{
 			RoundTripper: transport,
 		}
@@ -166,19 +178,22 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 	client := &iis.Client{
 		HttpClient: http.Client{
 			Transport: loggingTransport,
-			// Increased timeout to accommodate retries
-			// Total time: 5 retries * max 16s backoff + 60s request time
-			Timeout: 120 * time.Second,
+			Timeout:   120 * time.Second,
 		},
 		Host:         host,
 		AccessKey:    accessKey,
+		AgentMode:    agentMode,
 		NTLMUsername: ntlmUsername,
 		NTLMPassword: ntlmPassword,
 		NTLMDomain:   ntlmDomain,
 	}
 
-	// Auto-generate API token if only NTLM credentials are provided
-	// IIS Administration API requires both NTLM auth + access token for most operations
+	if agentMode {
+		tflog.Info(context.Background(), "Using iis-agent backend (simple Bearer auth)")
+		return client, nil
+	}
+
+	// Legacy: auto-generate API token if only NTLM credentials are provided
 	if hasNtlmCreds && !hasAccessKey {
 		tflog.Info(context.Background(), "No access_key provided, auto-generating API token using NTLM credentials")
 		

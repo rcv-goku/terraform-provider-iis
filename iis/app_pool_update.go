@@ -7,10 +7,13 @@ import (
 )
 
 func (client Client) UpdateAppPool(ctx context.Context, id string, pool ApplicationPool) (*ApplicationPool, error) {
-	url := fmt.Sprintf("/api/webserver/application-pools/%s", id)
-	// BuildPatchBody strips zero/empty values to prevent IIS API 500 errors
+	var url string
+	if client.AgentMode {
+		url = fmt.Sprintf("/api/app-pools?name=%s", id)
+	} else {
+		url = fmt.Sprintf("/api/webserver/application-pools/%s", id)
+	}
 	body := BuildPatchBody(pool)
-	// Remove fields the API doesn't accept on PATCH
 	delete(body, "id")
 	delete(body, "name")
 	res, err := httpPatch(ctx, client, url, body)

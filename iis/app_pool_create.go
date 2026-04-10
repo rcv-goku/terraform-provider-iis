@@ -5,24 +5,25 @@ import (
 	"encoding/json"
 )
 
-// createAppPoolRequest is the minimal payload for POST - IIS Admin API only accepts name on create
+// createAppPoolRequest is the minimal payload for POST
 type createAppPoolRequest struct {
 	Name                  string `json:"name"`
 	ManagedRuntimeVersion string `json:"managed_runtime_version,omitempty"`
 }
 
 func (client Client) CreateAppPool(ctx context.Context, req ApplicationPool) (*ApplicationPool, error) {
-	// IIS Admin API only accepts name (and optionally managed_runtime_version) on POST
-	// All other fields must be set via PATCH after creation
+	endpoint := "/api/webserver/application-pools"
+	if client.AgentMode {
+		endpoint = "/api/app-pools"
+	}
+
 	createReq := createAppPoolRequest{
 		Name:                  req.Name,
 		ManagedRuntimeVersion: req.ManagedRuntimeVersion,
 	}
 
-	res, err := httpPost(ctx, client, "/api/webserver/application-pools", createReq)
+	res, err := httpPost(ctx, client, endpoint, createReq)
 	if err != nil {
-		// If we get a 409 Conflict, the app pool already exists
-		// Try to retrieve it by name instead
 		if IsConflictError(err) {
 			pool, getErr := client.GetAppPoolByName(ctx, req.Name)
 			if getErr == nil {
