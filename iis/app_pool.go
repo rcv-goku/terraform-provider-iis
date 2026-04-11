@@ -95,20 +95,13 @@ type PeriodicRestart struct {
 }
 
 func (client Client) ReadAppPool(ctx context.Context, id string) (*ApplicationPool, error) {
-	var url string
-	if client.AgentMode {
-		url = fmt.Sprintf("/api/app-pools?name=%s", id)
-	} else {
-		url = fmt.Sprintf("/api/webserver/application-pools/%s", id)
-	}
 	var appPool ApplicationPool
-	if err := getJson(ctx, client, url, &appPool); err != nil {
+	if err := getJson(ctx, client, client.appPoolPath(id), &appPool); err != nil {
 		return nil, err
 	}
 	return &appPool, nil
 }
 
-// GetAppPoolByName retrieves an application pool by name from the list of all pools
 func (client Client) GetAppPoolByName(ctx context.Context, name string) (*ApplicationPool, error) {
 	if client.AgentMode {
 		return client.ReadAppPool(ctx, name)
@@ -116,7 +109,7 @@ func (client Client) GetAppPoolByName(ctx context.Context, name string) (*Applic
 	var response struct {
 		AppPools []ApplicationPool `json:"app_pools"`
 	}
-	if err := getJson(ctx, client, "/api/webserver/application-pools", &response); err != nil {
+	if err := getJson(ctx, client, client.appPoolsPath(), &response); err != nil {
 		return nil, err
 	}
 	for _, pool := range response.AppPools {
@@ -128,11 +121,5 @@ func (client Client) GetAppPoolByName(ctx context.Context, name string) (*Applic
 }
 
 func (client Client) DeleteAppPool(ctx context.Context, id string) error {
-	var url string
-	if client.AgentMode {
-		url = fmt.Sprintf("/api/app-pools?name=%s", id)
-	} else {
-		url = fmt.Sprintf("/api/webserver/application-pools/%s", id)
-	}
-	return httpDelete(ctx, client, url)
+	return httpDelete(ctx, client, client.appPoolPath(id))
 }

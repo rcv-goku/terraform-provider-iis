@@ -1,11 +1,7 @@
 package iis
 
-import (
-	"context"
-	"fmt"
-)
+import "context"
 
 func (client Client) DeleteWebsite(ctx context.Context, id string) error {
-	url := fmt.Sprintf("/api/webserver/websites/%s", id)
-	return httpDelete(ctx, client, url)
+	return httpDelete(ctx, client, client.websitePath(id))
 }

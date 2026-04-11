@@ -21,7 +21,7 @@ type WebsiteListResponse struct {
 
 func (client Client) ListWebsites(ctx context.Context) ([]WebsiteListItem, error) {
 	var res WebsiteListResponse
-	err := getJson(ctx, client, "/api/webserver/websites?fields=*", &res)
+	err := getJson(ctx, client, client.websitesPath(), &res)
 	if err != nil {
 		return nil, err
 	}

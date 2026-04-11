@@ -12,17 +12,12 @@ type createAppPoolRequest struct {
 }
 
 func (client Client) CreateAppPool(ctx context.Context, req ApplicationPool) (*ApplicationPool, error) {
-	endpoint := "/api/webserver/application-pools"
-	if client.AgentMode {
-		endpoint = "/api/app-pools"
-	}
-
 	createReq := createAppPoolRequest{
 		Name:                  req.Name,
 		ManagedRuntimeVersion: req.ManagedRuntimeVersion,
 	}
 
-	res, err := httpPost(ctx, client, endpoint, createReq)
+	res, err := httpPost(ctx, client, client.appPoolsPath(), createReq)
 	if err != nil {
 		if IsConflictError(err) {
 			pool, getErr := client.GetAppPoolByName(ctx, req.Name)

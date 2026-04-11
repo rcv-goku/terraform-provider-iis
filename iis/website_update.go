@@ -3,14 +3,12 @@ package iis
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 )
 
 func (client Client) UpdateWebsite(ctx context.Context, update Website) (*Website, error) {
-	url := fmt.Sprintf("/api/webserver/websites/%s", update.ID)
 	body := BuildPatchBody(update)
 	delete(body, "id")
-	res, err := httpPatch(ctx, client, url, body)
+	res, err := httpPatch(ctx, client, client.websitePath(update.ID), body)
 	if err != nil {
 		return nil, err
 	}
