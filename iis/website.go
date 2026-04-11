@@ -21,7 +21,9 @@ type WebsiteBinding struct {
 }
 
 type BindingCertificate struct {
-	ID string `json:"id"`
+	ID                string `json:"id"`
+	CertificateHash   string `json:"certificate_hash,omitempty"`
+	CertificateStore  string `json:"certificate_store_name,omitempty"`
 }
 
 type WebsiteLimits struct {

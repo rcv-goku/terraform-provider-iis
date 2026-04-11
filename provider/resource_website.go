@@ -22,6 +22,8 @@ const bindingPortKey = "port"
 const bindingAddressKey = "ip_address"
 const bindingHostKey = "hostname"
 const bindingCertificateId = "certificate"
+const bindingCertificateHashKey = "certificate_hash"
+const bindingCertificateStoreKey = "certificate_store_name"
 
 func resourceWebsite() *schema.Resource {
 	return &schema.Resource{
@@ -131,6 +133,17 @@ var bindingSchema = &schema.Resource{
 		bindingCertificateId: {
 			Type:     schema.TypeString,
 			Optional: true,
+		},
+		bindingCertificateHashKey: {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Description: "Thumbprint/hash of the SSL certificate",
+		},
+		bindingCertificateStoreKey: {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Default:     "MY",
+			Description: "Windows certificate store name (default: MY)",
 		},
 	},
 }
@@ -306,6 +319,8 @@ func getBindings(b *schema.Set) []iis.WebsiteBinding {
 		ipAddress := binding[bindingAddressKey].(string)
 		hostname := binding[bindingHostKey].(string)
 		id := binding[bindingCertificateId].(string)
+		certHash := binding[bindingCertificateHashKey].(string)
+		certStore := binding[bindingCertificateStoreKey].(string)
 
 		bindings[i] = iis.WebsiteBinding{
 			Port:      port,
@@ -313,7 +328,9 @@ func getBindings(b *schema.Set) []iis.WebsiteBinding {
 			Hostname:  hostname,
 			Protocol:  protocol,
 			Certificate: iis.BindingCertificate{
-				ID: id,
+				ID:               id,
+				CertificateHash:  certHash,
+				CertificateStore: certStore,
 			},
 		}
 	}
@@ -325,11 +342,13 @@ func mapBindingsToSet(site *iis.Website) *schema.Set {
 	var bindings []interface{}
 	for _, binding := range site.Bindings {
 		bindings = append(bindings, map[string]interface{}{
-			bindingProtocolKey:   binding.Protocol,
-			bindingAddressKey:    binding.IPAddress,
-			bindingPortKey:       binding.Port,
-			bindingHostKey:       binding.Hostname,
-			bindingCertificateId: binding.Certificate.ID,
+			bindingProtocolKey:         binding.Protocol,
+			bindingAddressKey:          binding.IPAddress,
+			bindingPortKey:             binding.Port,
+			bindingHostKey:             binding.Hostname,
+			bindingCertificateId:       binding.Certificate.ID,
+			bindingCertificateHashKey:  binding.Certificate.CertificateHash,
+			bindingCertificateStoreKey: binding.Certificate.CertificateStore,
 		})
 	}
 	set := schema.NewSet(hashBinding, bindings)
@@ -343,8 +362,10 @@ func hashBinding(v interface{}) int {
 	port := schema.HashInt(bindingMap[bindingPortKey].(int))
 	hostname := schema.HashString(bindingMap[bindingHostKey].(string))
 	certificateId := schema.HashString(bindingMap[bindingCertificateId].(string))
+	certificateHash := schema.HashString(bindingMap[bindingCertificateHashKey].(string))
+	certificateStore := schema.HashString(bindingMap[bindingCertificateStoreKey].(string))
 
-	return address + protocol + port + hostname + certificateId
+	return address + protocol + port + hostname + certificateId + certificateHash + certificateStore
 }
 
 // expandWebsiteLimits reads the limits block from Terraform state into an iis.WebsiteLimits struct.
